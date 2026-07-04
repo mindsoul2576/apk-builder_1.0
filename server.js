@@ -1,8 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,7 +21,7 @@ app.get('/', (req, res) => {
 });
 
 // ============================================
-// GENERATE APK - TRIGGER GITHUB ACTIONS
+// GENERATE APK
 // ============================================
 
 app.post('/generate', async (req, res) => {
@@ -40,57 +38,9 @@ app.post('/generate', async (req, res) => {
         console.log(`📱 Generating APK for: ${appName} (${url})`);
 
         const packageId = packageName || `com.${appName.toLowerCase().replace(/\s/g, '')}`;
-        const filename = `${appName.toLowerCase().replace(/\s/g, '-')}.apk`;
 
         // ============================================
-        // TRY 1: GitHub Actions
-        // ============================================
-        try {
-            console.log('Triggering GitHub Actions...');
-            
-            // GitHub Personal Access Token needed
-            const githubToken = process.env.GITHUB_TOKEN;
-            
-            if (githubToken) {
-                const githubResponse = await axios.post(
-                    'https://api.github.com/repos/mindssoul2576/apk-builder_1.0/actions/workflows/build.yml/dispatches',
-                    {
-                        ref: 'main',
-                        inputs: {
-                            url: url,
-                            app_name: appName,
-                            package_name: packageId
-                        }
-                    },
-                    {
-                        headers: {
-                            'Authorization': `token ${githubToken}`,
-                            'Accept': 'application/vnd.github.v3+json'
-                        }
-                    }
-                );
-
-                if (githubResponse.status === 204) {
-                    console.log('✅ GitHub Actions triggered successfully!');
-                    
-                    // Return a response telling user to wait
-                    return res.json({
-                        success: true,
-                        appName: appName,
-                        url: url,
-                        packageName: packageId,
-                        downloadUrl: `https://github.com/mindssoul2576/apk-builder_1.0/actions`,
-                        method: 'GitHub Actions (Processing)',
-                        message: 'APK sedang dibina di GitHub. Sila tunggu 3-5 minit dan download dari Actions tab.'
-                    });
-                }
-            }
-        } catch (githubError) {
-            console.log('GitHub Actions failed:', githubError.message);
-        }
-
-        // ============================================
-        // TRY 2: PWA2APK (Fallback)
+        // TRY 1: PWA2APK API
         // ============================================
         try {
             console.log('Trying PWA2APK...');
@@ -112,6 +62,7 @@ app.post('/generate', async (req, res) => {
             if (response.data) {
                 if (response.data.downloadUrl) downloadUrl = response.data.downloadUrl;
                 else if (response.data.url) downloadUrl = response.data.url;
+                else if (response.data.data && response.data.data.downloadUrl) downloadUrl = response.data.data.downloadUrl;
             }
 
             if (downloadUrl) {
@@ -131,7 +82,7 @@ app.post('/generate', async (req, res) => {
         }
 
         // ============================================
-        // TRY 3: AppMaker.xyz (Fallback)
+        // TRY 2: AppMaker.xyz (Fallback)
         // ============================================
         try {
             console.log('Trying AppMaker...');
@@ -192,7 +143,8 @@ app.post('/generate', async (req, res) => {
         console.log('❌ All methods failed');
         return res.status(500).json({
             success: false,
-            error: 'Failed to generate APK. Please try again later.'
+            error: 'Failed to generate APK. Please try again later.',
+            debug: 'All APK generation methods failed'
         });
 
     } catch (error) {
